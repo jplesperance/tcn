@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"log"
 	"math"
+	"strconv"
 )
 
 
@@ -111,9 +112,11 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
 	nonce := 0
+	fmt.Printf("maxNonce: %d\n", maxNonce)
 
 	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
 	for nonce < maxNonce {
+		fmt.Println("", maxNonce - nonce, nonce)
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)
 		fmt.Printf("\r%x", hash)
@@ -141,6 +144,19 @@ func IntToHex(n int64) []byte {
 	return buff.Bytes()
 }
 
+// functionality to validate the output of ProofOfWork
+func(pow *ProofOfWork) Validate() bool {
+	var hashInt big.Int
+
+	data := pow.prepareData(pow.block.Nonce)
+	hash := sha256.Sum256(data)
+	hashInt.SetBytes(hash[:])
+
+	isValid := hashInt.Cmp(pow.target) == -1
+
+	return isValid
+}
+
 // Meat of the app
 func main() {
 	bc := NewBlockchain()
@@ -152,6 +168,8 @@ func main() {
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
+		pow := NewProofOfWork(block)
+		fmt.Printf("POW: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println()
 	}
 }

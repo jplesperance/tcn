@@ -10,8 +10,10 @@ import (
 	"log"
 	"math"
 	"strconv"
-)
+	"encoding/gob"
 
+	"github.com/boltdb/bolt"
+)
 
 // define the maximum value of nonce
 var maxNonce = math.MaxInt64
@@ -21,6 +23,8 @@ var maxNonce = math.MaxInt64
 
 // Todo: Implement a difficulty adjusting algorithm
 const targetBits = 24
+const blocksBucket = "blocks"
+const dbFile = "blockchain.db"
 
 // Struct for out blocks
 //
@@ -38,7 +42,8 @@ type Block struct {
 
 // Blockchaing struct only needs an array to hold ordered hashes
 type Blockchain struct {
-	blocks []*Block
+	tip []byte
+	db  *bolt.DB
 }
 
 // Proof of work data structure definition
@@ -48,6 +53,37 @@ type Blockchain struct {
 type ProofOfWork struct {
 	block  *Block
 	target *big.Int
+}
+
+type BlockchainIterator struct {
+	currentHash []byte
+	db *bolt.DB
+}
+
+func (bc *Blockchain) Iterator() *BlockchainIterator {
+	bci := &BlockchainIterator{bc.tip, bc.db}
+
+	return bci
+}
+
+func (i *BlockchainIterator) Next() *Block {
+	var block *Block
+
+	err := i.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		encodedBlock := b.Get(i.currentHash)
+		block = DeserializeBlock(encodedBlock)
+
+		return nil
+	})
+	if err != nil {
+		log.Print("Unbale to retrieve the blockchain from the database")
+
+	}
+
+	i.currentHash = block.PrevBlockHash
+
+	return block
 }
 
 // Create a new block, populate the fields and return it to the calling method
@@ -64,9 +100,37 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 
 // Create and add a new block to the blockchain
 func (bc *Blockchain) AddBlock(data string) {
-	prevBlock := bc.blocks[len(bc.blocks)-1]
-	newBlock := NewBlock(data, prevBlock.Hash)
-	bc.blocks = append(bc.blocks, newBlock)
+	var lastHash []byte
+
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		lastHash = b.Get([]byte("1"))
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic("Unable to retieve blockchain from the database", err)
+	}
+
+	newBlock := NewBlock(data, lastHash)
+
+	err = bc.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blockBucket))
+		err := b.Put(newBlock.Hash, newBlock.Serialize())
+		if err != nil {
+			log.Println("Error updating block", err)
+			return err
+		}
+		err = b.Put([]byte("1"), newBlock.Hash)
+		if err != nil {
+			log.Println("Unable to add new block to blockchain", err)
+			return err
+		}
+		bc.tip = newBlock.Hash
+
+		return nil
+	})
 }
 
 // A function for generating a Genesis block, needed as the first block in a
@@ -75,9 +139,43 @@ func NewGenesisBlock() *Block {
 	return NewBlock("Genesis Block", []byte{})
 }
 
-// A function to generate a Genesis block and create a new blockchain
+// Check if a blockchain exists, if not, generate a genesis block and create blockchain
 func NewBlockchain() *Blockchain {
-	return &Blockchain{[]*Block{NewGenesisBlock()}}
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Fatal("Unable to open database", err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		if b == nil {
+			genesis := NewGenesisBlock()
+			b, err := tx.CreateBucket([]byte(blocksBucket))
+			if err != nil {
+				log.Fatal("Unable to create blocksBucket", err)
+				return err
+			}
+			err = b.Put(genesis.Hash, genesis.Serialize())
+			if err != nil {
+				log.Fatal("Unable to add Genesis block to database", err)
+				return err
+			}
+			err = b.Put([]byte("1"), genesis.Hash)
+			if err != nil {
+				log.Println("Unable to update the genesis hash to the database", err)
+				return err
+			}
+			tip = genesis.Hash
+		} else {
+			tip = b.Get([]byte("1"))
+		}
+		return nil
+	})
+
+	bc := Blockchain{tip, db}
+	return &bc
+
 }
 
 // Method to create a new Proof of Work
@@ -116,10 +214,9 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 
 	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
 	for nonce < maxNonce {
-		fmt.Println("", maxNonce - nonce, nonce)
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)
-		fmt.Printf("\r%x", hash)
+		fmt.Printf("\r%x %d %d", hash, maxNonce-nonce, nonce)
 		hashInt.SetBytes(hash[:])
 
 		if hashInt.Cmp(pow.target) == -1 {
@@ -145,7 +242,7 @@ func IntToHex(n int64) []byte {
 }
 
 // functionality to validate the output of ProofOfWork
-func(pow *ProofOfWork) Validate() bool {
+func (pow *ProofOfWork) Validate() bool {
 	var hashInt big.Int
 
 	data := pow.prepareData(pow.block.Nonce)
@@ -157,6 +254,32 @@ func(pow *ProofOfWork) Validate() bool {
 	return isValid
 }
 
+// use encoding/gob to encode the block and return as a byte array
+func (b *Block) Serialize() []byte {
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
+
+	err := encoder.Encode(b)
+	if err != nil {
+		log.Fatal("Block encoding failed: ", err)
+	}
+
+	return result.Bytes()
+}
+
+// Take the byte array, decode the block and return the struct
+func DeserializeBlock(d []byte) *Block {
+	var block Block
+	decoder := gob.NewDecoder(bytes.NewReader(d))
+
+	err := decoder.Decode(&block)
+	if err != nil {
+		log.Fatal("Failed to decode block: ", err)
+	}
+
+	return &block
+}
+
 // Meat of the app
 func main() {
 	bc := NewBlockchain()
@@ -164,7 +287,7 @@ func main() {
 	bc.AddBlock("Send 1 btc to Ivan")
 	bc.AddBlock("Send 2 btc to Igor")
 
-	for _, block := range bc.blocks {
+	for _, block := range bc.tip {
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)

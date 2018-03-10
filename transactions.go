@@ -70,7 +70,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
 func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
-	fmt.Printf("Checking for spendable outputs")
+
 	acc, validOutputs := bc.FindSpendableOutputs(from, amount)
 
 	if acc < amount {
@@ -78,7 +78,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	}
 
 	for txid, outs := range validOutputs {
-		fmt.Println("Decode transaction ID")
+
 		txID, err := hex.DecodeString(txid)
 		if err != nil {
 			log.Panic(err)
@@ -96,7 +96,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	}
 
 	tx := Transaction{nil, inputs, outputs}
-	fmt.Println("Set the transaction ID")
+
 	tx.SetID()
 
 	return &tx

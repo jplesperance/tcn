@@ -40,16 +40,15 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 
 func (i *BlockchainIterator) Next() *Block {
 	var block *Block
-	fmt.Println("Next()")
+
 	err := i.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		fmt.Println("Get the hash of the encoded block")
 		encodedBlock := b.Get(i.currentHash)
-		fmt.Println("decod block")
-		block = DeserializeBlock(encodedBlock)
 
+		block = DeserializeBlock(encodedBlock)
 		return nil
 	})
+
 	if err != nil {
 		log.Print("Unbale to retrieve the blockchain from the database")
 
@@ -66,7 +65,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		lastHash = b.Get([]byte("1"))
+		lastHash = b.Get([]byte("l"))
 
 		return nil
 	})
@@ -84,7 +83,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 			log.Println("Error updating block", err)
 			return err
 		}
-		err = b.Put([]byte("1"), newBlock.Hash)
+		err = b.Put([]byte("l"), newBlock.Hash)
 		if err != nil {
 			log.Println("Unable to add new block to blockchain", err)
 			return err
@@ -95,11 +94,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	})
 }
 
-// A function for generating a Genesis block, needed as the first block in a
-// blockchain
-func NewGenesisBlock(coinbase *Transaction) *Block {
-	return NewBlock([]*Transaction{coinbase}, []byte{})
-}
+
 
 // Check if a blockchain exists, if not, generate a genesis block and create blockchain
 func NewBlockchain(address string) *Blockchain {
@@ -111,18 +106,18 @@ func NewBlockchain(address string) *Blockchain {
 
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
-	fmt.Println("database opened")
+
 	if err != nil {
 		log.Fatal("Unable to open database", err)
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		fmt.Println("updating database")
+
 		b := tx.Bucket([]byte(blocksBucket))
-		tip = b.Get([]byte("1"))
+		tip = b.Get([]byte("l"))
 		return nil
 	})
-	fmt.Println("Not sure where from here")
+
 	if err != nil {
 		log.Panic(err)
 	}
@@ -135,15 +130,15 @@ func NewBlockchain(address string) *Blockchain {
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	var unspentTXs []Transaction
 	spentTXOs := make(map[string][]int)
-	fmt.Println("Initiate Iterator")
+
 	bci := bc.Iterator()
 
 	for {
-		fmt.Println("Get next Block")
+
 		block := bci.Next()
 
 		for _, tx := range block.Transactions {
-			fmt.Println("Encode transaction id to string")
+
 			txID := hex.EncodeToString(tx.ID)
 
 		Outputs:
@@ -155,7 +150,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 						}
 					}
 				}
-				fmt.Println("check if can be unlocked")
+
 				if out.CanBeUnlockedWith(address) {
 					unspentTXs = append(unspentTXs, *tx)
 				}
@@ -194,13 +189,13 @@ func (bc *Blockchain) FindUTXO(address string) []TXOutput {
 
 func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
-	fmt.Println("Find unspent transactions")
+
 	unspentTXs := bc.FindUnspentTransactions(address)
 	accumulated := 0
 
 	Work:
 		for _, tx := range unspentTXs {
-			fmt.Println("Encode transaction IDs to a string")
+
 			txID := hex.EncodeToString(tx.ID)
 
 			for outIdx, out := range tx.Vout {
@@ -229,11 +224,12 @@ func dbExists() bool {
 
 func CreateBlockchain(address string) *Blockchain {
 	if dbExists() {
-		fmt.Println("Blockchain already exists.")
+
 		os.Exit(1)
 	}
 
 	var tip []byte
+
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Panic(err)
@@ -241,15 +237,20 @@ func CreateBlockchain(address string) *Blockchain {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
-		fmt.Println("Creating Genesis block")
+
 		genesis := NewGenesisBlock(cbtx)
 
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
 			log.Panic(err)
 		}
-		fmt.Println("Storing genesis block in database")
+
 		err = b.Put(genesis.Hash, genesis.Serialize())
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), genesis.Hash)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -258,7 +259,7 @@ func CreateBlockchain(address string) *Blockchain {
 
 		return nil
 	})
-	fmt.Println("Interesting")
+
 	if err != nil {
 		log.Panic(err)
 	}

@@ -6,7 +6,7 @@ import (
 	"encoding/gob"
 	"log"
 	"crypto/sha256"
-
+	"io"
 )
 
 // Struct for out blocks
@@ -23,18 +23,6 @@ type Block struct {
 	Nonce         int
 }
 
-// Create a new block, populate the fields and return it to the calling method
-func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-
-	block.Hash = hash[:]
-	block.Nonce = nonce
-
-	return block
-}
-
 // use encoding/gob to encode the block and return as a byte array
 func (b *Block) Serialize() []byte {
 	var result bytes.Buffer
@@ -48,20 +36,6 @@ func (b *Block) Serialize() []byte {
 	return result.Bytes()
 }
 
-// Take the byte array, decode the block and return the struct
-func DeserializeBlock(d []byte) *Block {
-	var block Block
-
-	decoder := gob.NewDecoder(bytes.NewReader(d))
-
-	err := decoder.Decode(&block)
-	if err != nil {
-		log.Fatal("Failed to decode block: ", err.Error())
-	}
-
-	return &block
-}
-
 func (b *Block) HashTransactions() []byte {
 	var txHashes [][]byte
 	var txHash [32]byte
@@ -73,3 +47,35 @@ func (b *Block) HashTransactions() []byte {
 
 	return txHash[:]
 }
+
+// Create a new block, populate the fields and return it to the calling method
+func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+
+	block.Hash = hash[:]
+	block.Nonce = nonce
+
+	return block
+}
+
+// A function for generating a Genesis block, needed as the first block in a
+// blockchain
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{})
+}
+
+// Take the byte array, decode the block and return the struct
+func DeserializeBlock(d []byte) *Block {
+	var block Block
+	decoder := gob.NewDecoder(bytes.NewReader(d))
+	err := decoder.Decode(&block)
+
+	if err != nil && err != io.EOF {
+		log.Fatal("Failed to decode block: ", err.Error())
+	}
+
+	return &block
+}
+

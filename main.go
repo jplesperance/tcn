@@ -24,7 +24,7 @@ var maxNonce = math.MaxInt64
 // Picked an arbitrary number, the goal is to have a target less than 256 bits in memory
 
 // Todo: Implement a difficulty adjusting algorithm
-const targetBits = 24
+const targetBits = 20
 const blocksBucket = "blocks"
 const dbFile = "blockchain.db"
 
@@ -66,6 +66,19 @@ type CLI struct {
 	bc *Blockchain
 }
 
+func (cli *CLI) printUsage() {
+	fmt.Println("Usage:")
+	fmt.Println("  addblock -data BLOCK_DATA - add a block to the blockchain")
+	fmt.Println("  printchain - print all the blocks of the blockchain")
+}
+
+func (cli *CLI) validateArgs() {
+	if len(os.Args) < 2 {
+		cli.printUsage()
+		os.Exit(1)
+	}
+}
+
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
@@ -77,8 +90,14 @@ func (cli *CLI) Run() {
 	switch os.Args[1] {
 	case "addblock":
 		err := addBlockCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Fatal("Unable to add block to bockchain", err)
+		}
 	case "printchain":
 		err := printChainCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Println("Unable to print blockchain")
+		}
 	default:
 		cli.printUsage()
 		os.Exit(1)
@@ -177,7 +196,7 @@ func (bc *Blockchain) AddBlock(data string) {
 	newBlock := NewBlock(data, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blockBucket))
+		b := tx.Bucket([]byte(blocksBucket))
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
 		if err != nil {
 			log.Println("Error updating block", err)
@@ -244,7 +263,7 @@ func NewBlockchain() *Blockchain {
 // 256 is used as its the length of the SHA-256 hashing algorithm
 func NewProofOfWork(b *Block) *ProofOfWork {
 	target := big.NewInt(1)
-	target.Lsh(target, uint(156-targetBits))
+	target.Lsh(target, uint(256-targetBits))
 
 	pow := &ProofOfWork{b, target}
 

@@ -16,3 +16,9 @@ pipelines:
           - go get -v
           - go build -v
           - go test -v
+  tags:
+    v*:
+      - step:
+          script:
+          - go install -v
+          - bittycoin createblockchain -address "bitbucket"

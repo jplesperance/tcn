@@ -51,7 +51,7 @@ bittycoin printchain
 * [BoltDB](https://github.com/boltdb/bolt) - BoltDB: embedded k/v database for Go
 
 ## Contributing
-Please read [CONTRIBUTING.md](https://bitbucket.org/lesperanceio/bittycoin/CONTRIBUTING.md)
+Please read [CONTRIBUTING.md](https://bitbucket.org/lesperanceio/bittycoin/src/master/CONTRIBUTING.md)
 
 ## Versioning
-We use [SemVer]() for versioning. For the versions available, see the [tags on this repository]().
+We use [SemVer](http://server.org/) for versioning. For the versions available, see the [tags on this repository](https://bitbucket.org/lesperanceio/bittycoin/addon/com.releasebucket/releases).

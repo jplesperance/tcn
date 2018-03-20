@@ -48,13 +48,13 @@ tcn getbalance -address <wallet-address>
 ### Send coins to another wallet
 
 ```bash
-bittycoin send -to <destination-wallet> -from <source-wallet> -amount <amount of coins to send>
+tcn send -to <destination-wallet> -from <source-wallet> -amount <amount of coins to send>
 ```
 
 ### Print all the blocks of the blockchain
 
 ```bash
-bittycoin printchain
+tcn printchain
 ```
 
 ## Built With

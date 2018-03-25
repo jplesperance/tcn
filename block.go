@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-// Struct for out blocks
+// Represents a block in the blockchain
 //
 // Timestamp: the timestamp for when the block was created
 // Data: actual information contained in the block
@@ -24,16 +24,14 @@ type Block struct {
 }
 
 // use encoding/gob to encode the block and return as a byte array
-func (b *Block) Serialize() []byte {
-	var result bytes.Buffer
-	encoder := gob.NewEncoder(&result)
+func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+	block.Hash = hash[:]
+	block.Nonce = nonce
 
-	err := encoder.Encode(b)
-	if err != nil {
-		log.Panic("Block encoding failed: ", err)
-	}
-
-	return result.Bytes()
+	return block
 }
 
 func (b *Block) HashTransactions() []byte {
@@ -41,7 +39,7 @@ func (b *Block) HashTransactions() []byte {
 	var txHash [32]byte
 
 	for _, tx := range b.Transactions {
-		txHashes = append(txHashes, tx.ID)
+		txHashes = append(txHashes, tx.Hash())
 	}
 	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
 

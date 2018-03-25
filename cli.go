@@ -65,6 +65,7 @@ func (cli *CLI) Run() {
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
 	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
+
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 	sendFrom := sendCmd.String("from","", "Source wallet address")
@@ -171,7 +172,7 @@ func (cli *CLI) printChain() {
 
 	for {
 		block := bci.Next()
-		fmt.Printf("========== Block %x ==========\n", block.Hash())
+		fmt.Printf("========== Block %x ==========\n", block.Hash)
 		fmt.Printf("Prev Block: %x\n", block.PrevBlockHash)
 		pow := NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n\n", strconv.FormatBool(pow.Validate()))

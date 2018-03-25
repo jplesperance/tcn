@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"github.com/ugorji/go/codec"
+
 )
 
 const subsidy = 10
@@ -185,14 +185,6 @@ func (out *TXOutput) Lock(address []byte) {
 
 func (out TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
-}
-
-func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
-	return in.ScriptSig == unlockingData
-}
-
-func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
-	return out.ScriptPubKey == unlockingData
 }
 
 func NewTXOutput(value int, address string) *TXOutput {

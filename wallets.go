@@ -72,7 +72,7 @@ func (ws Wallets) SaveToFile() {
 	var content bytes.Buffer
 	gob.Register(elliptic.P256())
 
-	encoder := gob.NewEncode(&content)
+	encoder := gob.NewEncoder(&content)
 	err := encoder.Encode(ws)
 	if err != nil {
 		log.Panic(err)

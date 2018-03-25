@@ -2,6 +2,9 @@ package main
 
 import (
 	"math"
+	"bytes"
+	"crypto/ecdsa"
+	"errors"
 	"github.com/boltdb/bolt"
 	"log"
 	"encoding/hex"
@@ -16,7 +19,7 @@ var maxNonce = math.MaxInt64
 // Picked an arbitrary number, the goal is to have a target less than 256 bits in memory
 
 // Todo: Implement a difficulty adjusting algorithm
-const targetBits = 20
+const targetBits = 21
 const blocksBucket = "blocks"
 const dbFile = "blockchain.db"
 const genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
@@ -36,6 +39,34 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 	bci := &BlockchainIterator{bc.tip, bc.db}
 
 	return bci
+}
+
+func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	prevTXs := make(map[string]Transaction)
+
+	for _, vin := range tx.Vin {
+		prevTX, err := bc.FindTransaction(vin.Txid)
+		if err != nil {
+			log.Panic(err)
+		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	tx.Sign(privKey, prevTXs)
+}
+
+func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	prevTXs := make(map[string]Transaction)
+
+	for _, vin := range tx.Vin {
+		prevTX, err := bc.FindTransaction(vin.Txid)
+		if err != nil {
+			log.Panic(err)
+		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	return tx.Verify(prevTXs)
 }
 
 func (i *BlockchainIterator) Next() *Block {
@@ -62,6 +93,12 @@ func (i *BlockchainIterator) Next() *Block {
 // Create and add a new block to the blockchain
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
+
+	for _, tx := range transactions {
+		if bc.VerifyTransaction(tx) != true {
+			log.Panic("Error: Invalid transaction")
+		}
+	}
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -92,6 +129,10 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 
 		return nil
 	})
+
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 
@@ -99,7 +140,6 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 // Check if a blockchain exists, if not, generate a genesis block and create blockchain
 func NewBlockchain(address string) *Blockchain {
 	if dbExists() == false {
-		log.Fatal("No existing blockchain was found.")
 		fmt.Println("No existing blockchain found.  Create on first.")
 		os.Exit(1)
 	}
@@ -108,7 +148,7 @@ func NewBlockchain(address string) *Blockchain {
 	db, err := bolt.Open(dbFile, 0600, nil)
 
 	if err != nil {
-		log.Fatal("Unable to open database", err)
+		log.Panic("Unable to open database", err)
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -127,7 +167,7 @@ func NewBlockchain(address string) *Blockchain {
 
 }
 
-func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 	var unspentTXs []Transaction
 	spentTXOs := make(map[string][]int)
 
@@ -144,21 +184,21 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 		Outputs:
 			for outIdx, out := range tx.Vout {
 				if spentTXOs[txID] != nil {
-					for _, spentOut := range spentTXOs[txID] {
-						if spentOut == outIdx {
+					for _, spentOutIdx := range spentTXOs[txID] {
+						if spentOutIdx == outIdx {
 							continue Outputs
 						}
 					}
 				}
 
-				if out.CanBeUnlockedWith(address) {
+				if out.IsLockedWithKey(pubKeyHash) {
 					unspentTXs = append(unspentTXs, *tx)
 				}
 			}
 
 			if tx.IsCoinbase() == false {
 				for _, in := range tx.Vin {
-					if in.CanUnlockOutputWith(address) {
+					if in.UsesKey(pubKeyHash) {
 						inTxID := hex.EncodeToString(in.Txid)
 						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 					}
@@ -173,13 +213,13 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	return unspentTXs
 }
 
-func (bc *Blockchain) FindUTXO(address string) []TXOutput {
+func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput {
 	var UTXOs []TXOutput
-	unspentTransactions := bc.FindUnspentTransactions(address)
+	unspentTransactions := bc.FindUnspentTransactions(pubKeyHash)
 
 	for _, tx := range unspentTransactions {
 		for _, out := range tx.Vout {
-			if out.CanBeUnlockedWith(address) {
+			if out.IsLockedWithKey(pubKeyHash) {
 				UTXOs = append(UTXOs, out)
 			}
 		}
@@ -187,10 +227,10 @@ func (bc *Blockchain) FindUTXO(address string) []TXOutput {
 	return UTXOs
 }
 
-func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+func (bc *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
 
-	unspentTXs := bc.FindUnspentTransactions(address)
+	unspentTXs := bc.FindUnspentTransactions(pubKeyHash)
 	accumulated := 0
 
 	Work:
@@ -199,7 +239,7 @@ func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map
 			txID := hex.EncodeToString(tx.ID)
 
 			for outIdx, out := range tx.Vout {
-				if out.CanBeUnlockedWith(address) && accumulated < amount {
+				if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
 					accumulated += out.Value
 					unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
 					if accumulated >= amount {
@@ -214,6 +254,24 @@ func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map
 		return accumulated, unspentOutputs
 }
 
+func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+		for _, tx := range block.Transactions {
+			if bytes.Compare(tx.ID, ID) == 0 {
+				return *tx, nil
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+	return Transaction{}, errors.New("Transaction is not found")
+}
+
 func dbExists() bool {
 	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
 		return false
@@ -224,11 +282,14 @@ func dbExists() bool {
 
 func CreateBlockchain(address string) *Blockchain {
 	if dbExists() {
-
+		fmt.Println("Blockchain already exists.")
 		os.Exit(1)
 	}
 
 	var tip []byte
+
+	cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+	genesis := NewGenesisBlock(cbtx)
 
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
@@ -236,9 +297,6 @@ func CreateBlockchain(address string) *Blockchain {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
-
-		genesis := NewGenesisBlock(cbtx)
 
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {

@@ -17,21 +17,10 @@ import (
 // Hash: the hash of the current block
 type Block struct {
 	Timestamp     int64
-	Transactions []*Transaction
+	Transactions  []*Transaction
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
-}
-
-// use encoding/gob to encode the block and return as a byte array
-func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-	block.Hash = hash[:]
-	block.Nonce = nonce
-
-	return block
 }
 
 func (b *Block) HashTransactions() []byte {
@@ -44,6 +33,16 @@ func (b *Block) HashTransactions() []byte {
 	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
 
 	return txHash[:]
+}
+
+func (b *Block) Serialize() []byte {
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
+	err := encoder.Encode(b)
+	if err != nil {
+		log.Panic(err)
+	}
+	return result.Bytes()
 }
 
 // Create a new block, populate the fields and return it to the calling method
@@ -76,4 +75,3 @@ func DeserializeBlock(d []byte) *Block {
 
 	return &block
 }
-

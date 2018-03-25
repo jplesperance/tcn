@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-// Struct for out blocks
+// Represents a block in the blockchain
 //
 // Timestamp: the timestamp for when the block was created
 // Data: actual information contained in the block
@@ -17,23 +17,10 @@ import (
 // Hash: the hash of the current block
 type Block struct {
 	Timestamp     int64
-	Transactions []*Transaction
+	Transactions  []*Transaction
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
-}
-
-// use encoding/gob to encode the block and return as a byte array
-func (b *Block) Serialize() []byte {
-	var result bytes.Buffer
-	encoder := gob.NewEncoder(&result)
-
-	err := encoder.Encode(b)
-	if err != nil {
-		log.Panic("Block encoding failed: ", err)
-	}
-
-	return result.Bytes()
 }
 
 func (b *Block) HashTransactions() []byte {
@@ -41,11 +28,21 @@ func (b *Block) HashTransactions() []byte {
 	var txHash [32]byte
 
 	for _, tx := range b.Transactions {
-		txHashes = append(txHashes, tx.ID)
+		txHashes = append(txHashes, tx.Hash())
 	}
 	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
 
 	return txHash[:]
+}
+
+func (b *Block) Serialize() []byte {
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
+	err := encoder.Encode(b)
+	if err != nil {
+		log.Panic(err)
+	}
+	return result.Bytes()
 }
 
 // Create a new block, populate the fields and return it to the calling method
@@ -78,4 +75,3 @@ func DeserializeBlock(d []byte) *Block {
 
 	return &block
 }
-

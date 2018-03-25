@@ -72,7 +72,7 @@ func ValidateAddress(address string) bool {
 	pubKeyHash = pubKeyHash[1:len(pubKeyHash)-addressChecksumLen]
 
 	targetChecksum := checksum(append([]byte{version}, pubKeyHash...))
-	
+
 	return bytes.Compare(actualChecksum, targetChecksum) == 0
 }
 

@@ -1,0 +1,18 @@
+language: go
+
+go:
+  - tip
+
+script:
+  - ".build.sh"
+
+deploy:
+  provider: releases
+  skip_cleanup: true
+  api_key:
+    secure:
+  file: bin/tcn
+  on:
+    repo: jplesperance/tcn
+    tags: true
+

@@ -11,6 +11,8 @@ notifications:
   email: false
 before_script:
    - GO_FILES=$(find . -iname '*.go' -type f | grep -v /vendor/)
+   - go get github.com/boltdb/bolt
+   - go get golang.org/x/crypto/ripemd160
    - go get github.com/golang/lint/golint
    - go get honnef.co/go/tools/cmd/megacheck
    - go get github.com/fzipp/gocyclo

@@ -1,3 +1,12 @@
+// Copyright 2018 Jesse P Lesperance. All Rights Reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE.md file.
+/*
+	Transaction Cryptocurrency Network
+
+	Package Main is the only package
+	The goal is to maintain a minimal main file
+ */
 package main
 
 import (
@@ -5,6 +14,7 @@ import (
 	"math/big"
 )
 
+// The characters we will use for Base58
 var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
 // Base58Encode encodes a byte array to Base58
@@ -22,7 +32,7 @@ func Base58Encode(input []byte) []byte {
 		result = append(result, b58Alphabet[mod.Int64()])
 	}
 
-	// https://en.bitcoin.it/wiki/Base58Check_encoding#Version_bytes
+
 	if input[0] == 0x00 {
 		result = append(result, b58Alphabet[0])
 	}
@@ -51,6 +61,7 @@ func Base58Decode(input []byte) []byte {
 	return decoded
 }
 
+// Reverse pairs of bytes, used as part for base58 encoding
 func ReverseBytes(data []byte) {
 	for i, j := 0, len(data)-1; i<j; i, j = i+1, j-1 {
 		data[i], data[j] = data[j], data[i]

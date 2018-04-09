@@ -4,7 +4,7 @@ Transactional Cryptocurrency Network, TCN, is a simple blockchain and cryptocurr
 
 ## Motivation
 
-I decided to start this project as a way to gain a better understanding for blockchain technology and implementation.  TCN is loosely based on the BitCoin Specification.  
+I decided to start this project as a way to gain a better understanding for blockchain technology.  It is a living research project that has loosely implements the bitcoin specification.  Anyone interested in building anything stable upon TCN is encouraged to fork it first, since given the reseach project status, backwards breaking changes are likely.
 
 ## Getting Started
 
@@ -56,6 +56,9 @@ tcn send -to <destination-wallet> -from <source-wallet> -amount <amount of coins
 ```bash
 tcn printchain
 ```
+
+### Slack Channel for TCH
+[TCN Platform Official Slack](https://tcnplatform.slack.com)
 
 ## Built With
 
